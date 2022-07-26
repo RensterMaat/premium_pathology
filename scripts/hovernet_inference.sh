@@ -9,8 +9,8 @@ python run_infer.py \
     --nr_types=6 \
     --batch_size=32 \
     --type_info_path=type_info.json \
-    --nr_inference_workers=4 \
-    --nr_post_proc_workers=8 \
+    --nr_inference_workers=16 \
+    --nr_post_proc_workers=16 \
     --model_mode='fast' \
     wsi \
     --input_dir="/hpc/dla_patho/premium/tcga_skcm/test" \

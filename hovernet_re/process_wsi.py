@@ -10,9 +10,9 @@ from torch.utils.data import DataLoader
 from util import format_output, output2annotations
 from scipy.ndimage.morphology import binary_fill_holes, binary_erosion
 from pytorch_lightning import Trainer
+from pathlib import Path
 
-sys.path.insert(1, '/home/rens/repos/hover_net')
-
+sys.path.insert(1, '/hpc/dla_patho/premium/wliu/hover_net')
 from models.hovernet.net_desc import HoVerNet
 
 
@@ -22,11 +22,11 @@ class Processor(LightningModule):
 
         # setup hovernet
         self.net = HoVerNet(nr_types=6,mode='fast')
-        ckpt = torch.load('/home/rens/repos/premium_pathology/weights/hovernet_fast_pannuke_type_tf2pytorch.tar')
+        ckpt = torch.load('/hpc/dla_patho/premium/rens/premium_pathology/weights/hovernet_fast_pannuke_type_tf2pytorch.tar')
         self.net.load_state_dict(ckpt['desc'], strict=True)
 
         # open slide
-        self.slide = openslide.OpenSlide(slide_path)
+        self.slide = openslide.OpenSlide(str(slide_path))
         dimensions = np.array(self.slide.level_dimensions)
 
         # create mask
@@ -123,14 +123,31 @@ class Processor(LightningModule):
             geojson.dump(self.output, file)
 
 
-file_path = '/data/data/pathology/tcga/test/TCGA-3N-A9WC-01Z-00-DX1.C833FCAB-6329-4F90-88E5-CFDA0948047B.svs'
-save_path = '/data/data/pathology/tcga/test/geojson_output.json'
+slides_dir = Path('/hpc/dla_patho/premium/PREMIUM histopathology/data/isala/metastasis')
+annotation_dir = Path('/hpc/dla_patho/premium/rens/output/hovernet_re_output/isala')
 
-processor = Processor(
-    file_path
-)
+for slide in list(slides_dir.iterdir())[:2]:
+    print(slide)
+    processor = Processor(
+        slide
+    )
 
-trainer = Trainer(gpus=1)
-trainer.test(processor)
-s
-processor.save(save_path)
+    trainer = Trainer(gpus=1)
+    trainer.test(processor)
+
+    save_path = annotation_dir / (slide.stem + '.json')
+
+    processor.save(save_path)
+
+
+# file_path = '/data/data/pathology/tcga/test/TCGA-3N-A9WC-01Z-00-DX1.C833FCAB-6329-4F90-88E5-CFDA0948047B.svs'
+# save_path = '/data/data/pathology/tcga/test/geojson_output.json'
+
+# processor = Processor(
+#     file_path
+# )
+
+# trainer = Trainer(gpus=1)
+# trainer.test(processor)
+
+# processor.save(save_path)

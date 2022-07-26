@@ -6,9 +6,10 @@ import torch.nn.functional as F
 from math import ceil
 from collections import OrderedDict
 
-sys.path.insert(1, '/home/rens/repos/hover_net')
-from models.hovernet.post_proc import __proc_np_hv
-from misc.utils import get_bounding_box
+
+sys.path.insert(1, '/hpc/dla_patho/premium/wliu/hover_net')
+from models.hovernet.post_proc import __proc_np_hv, get_bounding_box
+
 
 def extract_patch(xmin, xmax, ymin, ymax):
     size_x = ceil((xmax-xmin) / 164) * 164 + 92
