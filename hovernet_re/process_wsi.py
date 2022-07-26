@@ -7,9 +7,10 @@ from pytorch_lightning import LightningModule
 from monai.transforms import Lambdad, Compose, ToTensord
 from monai.data import CacheDataset
 from torch.utils.data import DataLoader
-from util import format_output, output2annotations
+from util import format_output, output2annotations, normalize_staining
 from scipy.ndimage.morphology import binary_fill_holes, binary_erosion
 from pytorch_lightning import Trainer
+from pathlib import Path
 
 sys.path.insert(1, '/home/rens/repos/hover_net')
 
@@ -26,14 +27,14 @@ class Processor(LightningModule):
         self.net.load_state_dict(ckpt['desc'], strict=True)
 
         # open slide
-        self.slide = openslide.OpenSlide(slide_path)
+        self.slide = openslide.OpenSlide(str(slide_path))
         dimensions = np.array(self.slide.level_dimensions)
 
         # create mask
         image = np.array(self.slide.read_region((0,0), 3, self.slide.level_dimensions[3]).convert('RGB'))
-        mask = image.sum(axis=-1) < 600
+        mask = image.sum(axis=-1) < 650
         filled_mask = binary_fill_holes(mask)
-        eroded_mask = binary_erosion(filled_mask, iterations=50)
+        # eroded_mask = binary_erosion(filled_mask, iterations=50)
 
         # create and filter list of origins which will be inferenced
         xx = np.arange(0,self.slide.dimensions[0], 164)[:-1]
@@ -41,7 +42,7 @@ class Processor(LightningModule):
 
         origins = np.array([(x,y) for y in yy for x in xx])
         downsampled_origins = (origins / dimensions[0] * dimensions[3]).astype(int)
-        filtered_origins = origins[[eroded_mask[y,x] for x,y in downsampled_origins]]
+        filtered_origins = origins[[filled_mask[y,x] for x,y in downsampled_origins]]
 
         # self.input is the input to the dataset
         self.input = [{'origin':origin, 'image':origin} for origin in filtered_origins]
@@ -64,19 +65,23 @@ class Processor(LightningModule):
 
     def test_dataloader(self):
         ds = CacheDataset(
-            self.input[:1000],
+            self.input,
             transform=Compose([
                 Lambdad(
                     keys='image', 
-                    func=lambda x: self.slide.read_region(
+                    func=lambda x: np.array(processor.slide.read_region(
                         (x[0] - 46, x[1] - 46),
                         0,
                         (256,256)
-                    )
+                    ).convert('RGB'))
+                ),
+                Lambdad(
+                    keys='image',
+                    func=lambda x: normalize_staining(x)[0]
                 ),
                 Lambdad(
                     keys='image', 
-                    func = lambda x: np.array(x).transpose(2,0,1)[:-1]
+                    func = lambda x: x.transpose(2,0,1)
                 ),
                 ToTensord(keys='image')
             ]),
@@ -123,14 +128,20 @@ class Processor(LightningModule):
             geojson.dump(self.output, file)
 
 
-file_path = '/data/data/pathology/tcga/test/TCGA-3N-A9WC-01Z-00-DX1.C833FCAB-6329-4F90-88E5-CFDA0948047B.svs'
-save_path = '/data/data/pathology/tcga/test/geojson_output.json'
+slide_dir = Path('/home/rens/hpc/PREMIUM histopathology/data/isala/metastasis')
+output_dir = Path('/home/rens/hpc/rens/output/hovernet_re_output_normalized')
 
-processor = Processor(
-    file_path
-)
+for file in list(slide_dir.iterdir()):
+    print(file)
 
-trainer = Trainer(gpus=1)
-trainer.test(processor)
-s
-processor.save(save_path)
+
+    processor = Processor(
+        file
+    )
+
+    trainer = Trainer(gpus=1)
+    trainer.test(processor)
+
+    save_path = output_dir / (file.stem + '.json')
+
+    processor.save(save_path)
