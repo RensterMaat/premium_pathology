@@ -1,14 +1,15 @@
 import sys
+import cv2
 import torch
 import geojson
 import openslide
 import numpy as np
+import xml.etree.ElementTree as ET
 from pytorch_lightning import LightningModule
 from monai.transforms import Lambdad, Compose, ToTensord
 from monai.data import CacheDataset
 from torch.utils.data import DataLoader
 from util import format_output, output2annotations, normalize_staining
-from scipy.ndimage.morphology import binary_fill_holes, binary_erosion
 from pytorch_lightning import Trainer
 from pathlib import Path
 
@@ -18,31 +19,41 @@ from models.hovernet.net_desc import HoVerNet
 
 
 class Processor(LightningModule):
-    def __init__(self, slide_path):
+    def __init__(self, slide_path, annotation_path):
         super().__init__()
 
         # setup hovernet
         self.net = HoVerNet(nr_types=6,mode='fast')
-        ckpt = torch.load('/home/rens/repos/premium_pathology/weights/hovernet_fast_pannuke_type_tf2pytorch.tar')
+        ckpt = torch.load(r / 'rens/premium_pathology/weights/hovernet_fast_pannuke_type_tf2pytorch.tar')
         self.net.load_state_dict(ckpt['desc'], strict=True)
 
         # open slide
         self.slide = openslide.OpenSlide(str(slide_path))
         dimensions = np.array(self.slide.level_dimensions)
 
-        # create mask
-        image = np.array(self.slide.read_region((0,0), 3, self.slide.level_dimensions[3]).convert('RGB'))
-        mask = image.sum(axis=-1) < 650
-        filled_mask = binary_fill_holes(mask)
-        # eroded_mask = binary_erosion(filled_mask, iterations=50)
+        # load annotation
+        with open(annotation_path, 'r') as f:
+            xml_file = ET.parse(f)
+
+        # extract polygons from annotation
+        self.rois = []
+        for annotation in xml_file.getroot()[0]:
+            roi = []
+            for coordinate in annotation[0]:
+                roi.append([coordinate.attrib['X'], coordinate.attrib['Y']])
+            self.rois.append(np.array(roi).astype(float).astype(int))
+
+        # create mask from annotation
+        self.mask = np.zeros(np.flip(self.slide.dimensions))
+        cv2.fillPoly(self.mask, self.rois, 1)
+        self.mask = self.mask.astype(bool)
 
         # create and filter list of origins which will be inferenced
         xx = np.arange(0,self.slide.dimensions[0], 164)[:-1]
         yy = np.arange(0,self.slide.dimensions[1], 164)[:-1]
 
-        origins = np.array([(x,y) for y in yy for x in xx])
-        downsampled_origins = (origins / dimensions[0] * dimensions[3]).astype(int)
-        filtered_origins = origins[[filled_mask[y,x] for x,y in downsampled_origins]]
+        self.origins = np.array([(x,y) for y in yy for x in xx])
+        filtered_origins = self.origins[[self.mask[y,x] for x,y in self.origins]]
 
         # self.input is the input to the dataset
         self.input = [{'origin':origin, 'image':origin} for origin in filtered_origins]
@@ -127,21 +138,26 @@ class Processor(LightningModule):
         with open(save_path, 'w') as file:
             geojson.dump(self.output, file)
 
+r = Path('/home/rens/hpc')
 
-slide_dir = Path('/home/rens/hpc/PREMIUM histopathology/data/isala/metastasis')
-output_dir = Path('/home/rens/hpc/rens/output/hovernet_re_output_normalized')
 
-for file in list(slide_dir.iterdir()):
-    print(file)
+slide_dir = r / 'PREMIUM histopathology/data/isala/metastasis'
+annotation_dir = r / 'PREMIUM histopathology/data_annotations/isala/annotations'
+output_dir = r / 'rens/output/only_on_masks'
+
+for annotation_file in list(annotation_dir.iterdir()):
+    print(annotation_file.stem)
+    slide_file = slide_dir / (annotation_file.stem + '.ndpi')
 
 
     processor = Processor(
-        file
+        slide_file,
+        annotation_file
     )
 
     trainer = Trainer(gpus=1)
     trainer.test(processor)
 
-    save_path = output_dir / (file.stem + '.json')
+    save_path = output_dir / (annotation_file.stem + '.json')
 
     processor.save(save_path)

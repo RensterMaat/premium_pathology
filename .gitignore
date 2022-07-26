@@ -2,3 +2,4 @@ weights/*
 */lightning_logs/*
 */.ipynb_checkpoints/*
 *.pyc
+lightning_logs/*
