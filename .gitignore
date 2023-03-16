@@ -4,3 +4,6 @@ weights/*
 *.pyc
 lightning_logs/*
 *.out
+data
+*.pth
+*.csv
