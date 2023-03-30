@@ -9,7 +9,7 @@ data
 *.csv
 wandb
 lightning_logs
-heatmap_examples
+heatmap_examples/*
 examples
 pathology
 heatmap_examples
