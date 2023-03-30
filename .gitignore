@@ -7,3 +7,8 @@ lightning_logs/*
 data
 *.pth
 *.csv
+wandb
+lightning_logs
+heatmap_examples
+examples
+pathology

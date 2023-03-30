@@ -87,6 +87,6 @@ def transform_image(x):
     return transform(x[:, :, :-1])
 
 
-def extract_single_image_attention(image_4k):
+def extract_single_image_attention(feature_extractor, image_4k):
     transformed_image = transform_image(image_4k)
-    return extract_attention(transformed_image)
+    return extract_attention(feature_extractor, transformed_image)
