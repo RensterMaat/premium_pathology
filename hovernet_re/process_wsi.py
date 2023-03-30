@@ -23,7 +23,7 @@ class Processor(LightningModule):
 
         # setup hovernet
         self.net = HoVerNet(nr_types=6,mode='fast')
-        ckpt = torch.load(r / 'rens/premium_pathology/weights/hovernet_fast_pannuke_type_tf2pytorch.tar')
+        ckpt = torch.load('/hpc/dla_patho/premium/rens/premium_pathology/weights/hovernet_fast_pannuke_type_tf2pytorch.tar')
         self.net.load_state_dict(ckpt['desc'], strict=True)
 
         # open slide
@@ -137,26 +137,28 @@ class Processor(LightningModule):
         with open(save_path, 'w') as file:
             geojson.dump(self.output, file)
 
-r = Path('/home/rens/hpc')
+r = Path('/hpc/dla_patho/premium/pathology/')
 
-
-slide_dir = r / 'PREMIUM histopathology/data/isala/metastasis'
-annotation_dir = r / 'PREMIUM histopathology/data_annotations/isala/annotations'
-output_dir = r / 'rens/output/only_on_masks'
+slide_dir = r / 'metastasis/isala'
+annotation_dir = r / 'annotations/isala/core'
+output_dir = r / 'hovernet_output/isala/core'
 
 for annotation_file in list(annotation_dir.iterdir()):
-    print(annotation_file.stem)
-    slide_file = slide_dir / (annotation_file.stem + '.ndpi')
+    try:
+        print(annotation_file.stem)
+        slide_file = slide_dir / (annotation_file.stem + '.ndpi')
 
 
-    processor = Processor(
-        slide_file,
-        annotation_file
-    )
+        processor = Processor(
+            slide_file,
+            annotation_file
+        )
 
-    trainer = Trainer(gpus=1)
-    trainer.test(processor)
+        trainer = Trainer(gpus=1)
+        trainer.test(processor)
 
-    save_path = output_dir / (annotation_file.stem + '.json')
+        save_path = output_dir / (annotation_file.stem + '.json')
 
-    processor.save(save_path)
+        processor.save(save_path)
+    except Exception as e:
+        print(e)
