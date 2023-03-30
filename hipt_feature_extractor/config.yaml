@@ -1,0 +1,5 @@
+slide_dir:  /mnt/hpc/pathology/slides
+preprocess_dir: /mnt/hpc/pathology/hipt_preprocessed
+feature_dir: /mnt/hpc/pathology/hipt_features/primary_vs_metastasis_4k
+hipt_repository_path: /mnt/hpc/rens/HIPT
+clam_repository_path: /mnt/hpc/rens/CLAM

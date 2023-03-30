@@ -4,3 +4,15 @@ weights/*
 *.pyc
 lightning_logs/*
 *.out
+data
+*.pth
+*.csv
+wandb
+lightning_logs
+heatmap_examples/*
+examples
+pathology
+heatmap_examples
+__pycache__
+tb_logs
+.ipynb_checkpoints
